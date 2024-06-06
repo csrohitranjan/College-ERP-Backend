@@ -430,7 +430,38 @@ const rejectLORrequest = async (req, res) => {
 
 const getAllPendingLOR = async (req, res) => {
     try {
-        const pendingLORs = await Lor.find({ status: 'pending' }).populate('user', '-password -refreshToken');
+
+        const adminProgramme = req.user.programme;
+
+        // Use the aggregation pipeline to match both status and user programme
+        const pendingLORs = await Lor.aggregate([
+            {
+                $match: { status: 'pending' }
+            },
+            {
+                $lookup: {
+                    from: 'users', // The name of the User collection
+                    localField: 'user',
+                    foreignField: '_id',
+                    as: 'user'
+                }
+            },
+            {
+                $unwind: '$user'
+            },
+            {
+                $match: { 'user.programme': adminProgramme }
+            },
+            {
+                $project: {
+                    'user.password': 0,
+                    'user.refreshToken': 0,
+                    'user.__v': 0,
+                    '__v': 0
+                }
+            }
+        ]);
+
         return res.status(200).json({
             status: 200,
             success: true,
@@ -450,7 +481,36 @@ const getAllPendingLOR = async (req, res) => {
 
 const getAllApprovedLOR = async (req, res) => {
     try {
-        const approvedLORs = await Lor.find({ status: 'approved' }).populate('user', '-password -refreshToken');
+        const adminProgramme = req.user.programme;
+        // Use the aggregation pipeline to match both status and user programme
+        const approvedLORs = await Lor.aggregate([
+            {
+                $match: { status: 'approved' }
+            },
+            {
+                $lookup: {
+                    from: 'users', // The name of the User collection
+                    localField: 'user',
+                    foreignField: '_id',
+                    as: 'user'
+                }
+            },
+            {
+                $unwind: '$user'
+            },
+            {
+                $match: { 'user.programme': adminProgramme }
+            },
+            {
+                $project: {
+                    'user.password': 0,
+                    'user.refreshToken': 0,
+                    'user.__v': 0,
+                    '__v': 0
+                }
+            }
+        ]);
+
         return res.status(200).json({
             status: 200,
             success: true,
@@ -470,7 +530,37 @@ const getAllApprovedLOR = async (req, res) => {
 
 const getAllRejectedLOR = async (req, res) => {
     try {
-        const rejectedLORs = await Lor.find({ status: 'rejected' }).populate('user', '-password -refreshToken');
+        const adminProgramme = req.user.programme;
+
+        // Use the aggregation pipeline to match both status and user programme
+        const rejectedLORs = await Lor.aggregate([
+            {
+                $match: { status: 'rejected' }
+            },
+            {
+                $lookup: {
+                    from: 'users', // The name of the User collection
+                    localField: 'user',
+                    foreignField: '_id',
+                    as: 'user'
+                }
+            },
+            {
+                $unwind: '$user'
+            },
+            {
+                $match: { 'user.programme': adminProgramme }
+            },
+            {
+                $project: {
+                    'user.password': 0,
+                    'user.refreshToken': 0,
+                    'user.__v': 0,
+                    '__v': 0
+                }
+            }
+        ]);
+
         return res.status(200).json({
             status: 200,
             success: true,
