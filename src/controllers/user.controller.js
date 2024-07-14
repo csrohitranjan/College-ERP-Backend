@@ -1,7 +1,6 @@
 import { User } from "../models/user.model.js";
 import { generateAccessAndRefreshTokens } from "../utils/generateAccessAndRefreshTokens.js";
 import { generateRandomPassword } from "../utils/generateRandomPassword.js"
-import nodemailer from 'nodemailer';
 import dotenv from "dotenv";
 dotenv.config();
 import { sendMail } from "../utils/sendMail.js"

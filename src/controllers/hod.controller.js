@@ -7,105 +7,6 @@ import { generatePdfFromTemplate } from "../utils/generatePdfFromTemplate.js";
 import fs from "fs";
 import { sendMail } from "../utils/sendMail.js"
 
-const registerAsAdmin = async (req, res) => {
-    try {
-        let { fullName, email, phoneNumber, password } = req.body;
-
-        // Check if any required field is missing
-        if (!fullName || !email || !phoneNumber) {
-            return res.status(400).json({
-                status: 400,
-                success: false,
-                message: "All fields are required except password."
-            });
-        }
-
-        // Remove all whitespace characters from these fields
-        email = email.replace(/\s+/g, '');
-        phoneNumber = phoneNumber.replace(/\s+/g, '').toUpperCase();
-
-        // Concatenate fullName and phoneNumber for registrationNumber and examRollNumber
-        const registrationNumber = fullName.replace(/\s+/g, '').toUpperCase() + phoneNumber.replace(/\s+/g, '');
-        const examRollNumber = fullName.replace(/\s+/g, '').toUpperCase() + phoneNumber.replace(/\s+/g, '').toUpperCase();
-
-        // Set password as last five digits of examRollNumber if not provided
-        if (!password) {
-            password = phoneNumber.substr(-5); // Extract last five characters
-        }
-
-
-        const existedUser = await User.findOne({
-            $or: [{ email }, { phoneNumber }]
-        });
-
-        if (existedUser && existedUser.role === 'admin') {
-            return res.status(409).json({
-                status: 409,
-                success: false,
-                message: "Admin already Registered"
-            });
-        }
-
-        // Determine which field is already registered and return corresponding response
-        if (existedUser) {
-            if (existedUser.email === email) {
-                return res.status(409).json({
-                    status: 409,
-                    success: false,
-                    message: "Email is already registered",
-                });
-            } else {
-                return res.status(409).json({
-                    status: 409,
-                    success: false,
-                    message: "Phone number is already registered"
-                });
-            }
-        }
-
-        const insertedUser = await User.create({
-            fullName,
-            fatherName: 'NA',
-            classRollNumber: 'NA',
-            registrationNumber,
-            examRollNumber,
-            programme: 'NA',
-            department: 'NA',
-            role: 'admin', // Set the role to 'admin'
-            email,
-            phoneNumber,
-            password
-        });
-
-        const createdUser = await User.findById(insertedUser._id).select(
-            "-password -refreshToken"
-        );
-
-        if (!createdUser) {
-            return res.status(500).json({
-                status: 500,
-                success: false,
-                message: "Something Went Wrong While Registering the Admin"
-            });
-        }
-
-        return res.status(201).json({
-            status: 201,
-            success: true,
-            message: "Admin Registered Successfully",
-            user: createdUser
-        });
-
-    } catch (error) {
-        return res.status(500).json({
-            status: 500,
-            success: false,
-            message: "Internal Server Error on: registerAsAdmin Controller",
-            error: error.message
-        });
-    }
-}
-
 
 
 const updateLORrequest = async (req, res) => {
@@ -167,8 +68,6 @@ const updateLORrequest = async (req, res) => {
         });
     }
 }
-
-
 
 const approveLORrequest = async (req, res) => {
     try {
@@ -326,8 +225,6 @@ const approveLORrequest = async (req, res) => {
     }
 };
 
-
-
 const rejectLORrequest = async (req, res) => {
     try {
         const { lorId } = req.params;
@@ -425,11 +322,40 @@ const rejectLORrequest = async (req, res) => {
     }
 }
 
-
-
-const getAllPendingLOR = async (req, res) => {
+const allPendingLORsOfDept = async (req, res) => {
     try {
-        const pendingLORs = await Lor.find({ status: 'pending' }).populate('user', '-password -refreshToken');
+
+        const adminProgramme = req.user.programme;
+
+        // Use the aggregation pipeline to match both status and user programme
+        const pendingLORs = await Lor.aggregate([
+            {
+                $match: { status: 'pending' }
+            },
+            {
+                $lookup: {
+                    from: 'users', // The name of the User collection
+                    localField: 'user',
+                    foreignField: '_id',
+                    as: 'user'
+                }
+            },
+            {
+                $unwind: '$user'
+            },
+            {
+                $match: { 'user.programme': adminProgramme }
+            },
+            {
+                $project: {
+                    'user.password': 0,
+                    'user.refreshToken': 0,
+                    'user.__v': 0,
+                    '__v': 0
+                }
+            }
+        ]);
+
         return res.status(200).json({
             status: 200,
             success: true,
@@ -445,11 +371,38 @@ const getAllPendingLOR = async (req, res) => {
     }
 };
 
-
-
-const getAllApprovedLOR = async (req, res) => {
+const allApprovedLORsOfDept = async (req, res) => {
     try {
-        const approvedLORs = await Lor.find({ status: 'approved' }).populate('user', '-password -refreshToken');
+        const adminProgramme = req.user.programme;
+        // Use the aggregation pipeline to match both status and user programme
+        const approvedLORs = await Lor.aggregate([
+            {
+                $match: { status: 'approved' }
+            },
+            {
+                $lookup: {
+                    from: 'users', // The name of the User collection
+                    localField: 'user',
+                    foreignField: '_id',
+                    as: 'user'
+                }
+            },
+            {
+                $unwind: '$user'
+            },
+            {
+                $match: { 'user.programme': adminProgramme }
+            },
+            {
+                $project: {
+                    'user.password': 0,
+                    'user.refreshToken': 0,
+                    'user.__v': 0,
+                    '__v': 0
+                }
+            }
+        ]);
+
         return res.status(200).json({
             status: 200,
             success: true,
@@ -465,11 +418,39 @@ const getAllApprovedLOR = async (req, res) => {
     }
 };
 
-
-
-const getAllRejectedLOR = async (req, res) => {
+const allRejectedLORsOfDept = async (req, res) => {
     try {
-        const rejectedLORs = await Lor.find({ status: 'rejected' }).populate('user', '-password -refreshToken');
+        const adminProgramme = req.user.programme;
+
+        // Use the aggregation pipeline to match both status and user programme
+        const rejectedLORs = await Lor.aggregate([
+            {
+                $match: { status: 'rejected' }
+            },
+            {
+                $lookup: {
+                    from: 'users', // The name of the User collection
+                    localField: 'user',
+                    foreignField: '_id',
+                    as: 'user'
+                }
+            },
+            {
+                $unwind: '$user'
+            },
+            {
+                $match: { 'user.programme': adminProgramme }
+            },
+            {
+                $project: {
+                    'user.password': 0,
+                    'user.refreshToken': 0,
+                    'user.__v': 0,
+                    '__v': 0
+                }
+            }
+        ]);
+
         return res.status(200).json({
             status: 200,
             success: true,
@@ -487,179 +468,6 @@ const getAllRejectedLOR = async (req, res) => {
 
 
 
-const findLorsByExamRollNumber = async (req, res) => {
-    try {
-        const { examRollNumber } = req.params;
-
-        // Find the user by examRollNumber
-        const user = await User.findOne({ examRollNumber }).select(
-            "-password -refreshToken"
-        );
-
-        if (!user) {
-            return res.status(404).json({
-                status: 404,
-                success: false,
-                message: "User not found"
-            });
-        }
-
-        // Find all LORs associated with the user
-        const lors = await Lor.find({ user: user._id });
-
-        return res.status(200).json({
-            status: 200,
-            success: true,
-            message: "User and LORs found successfully",
-            user,
-            lors
-        });
-
-    } catch (error) {
-        return res.status(500).json({
-            status: 500,
-            success: false,
-            message: "Internal Server Error on findLorsByExamRollNumber Controller",
-            error: error.message
-        });
-    }
-}
 
 
-
-const findUserByExamRollNumber = async (req, res) => {
-    const { examRollNumber } = req.params;
-
-    try {
-        const user = await User.findOne({ examRollNumber }).select(
-            "-password -refreshToken"
-        );;
-
-        if (!user) {
-            return res.status(404).json({
-                status: 404,
-                success: false,
-                message: "User not found"
-            });
-        }
-
-        // If user found, send the user details
-        return res.status(200).json({
-            status: 200,
-            success: true,
-            user,
-            message: "User found successfully"
-        })
-    } catch (error) {
-        return res.status(400).json({
-            status: 400,
-            success: false,
-            message: "Insternal Server Error in finUserByExamRollNumber controller",
-            error: error.message
-        })
-    }
-}
-
-
-
-const updateUserProfileByExamRollNumber = async (req, res) => {
-    try {
-        const { examRollNumber } = req.params;
-        const { fullName, fatherName, classRollNumber, registrationNumber, programme, department, currentSemester, gender, email, phoneNumber } = req.body;
-
-        const user = await User.findOne({ examRollNumber })
-        if (!user) {
-            return res.status(400).json({
-                status: 400,
-                success: false,
-                message: "No user found from provided ExamRollNumber"
-            });
-        }
-        // Check if email or phoneNumber is already registered
-        const existingUser = await User.findOne({ $or: [{ email }, { phoneNumber }] });
-        // Determine which field is already registered and return corresponding response
-        if (existingUser) {
-            if (email !== undefined && existingUser.email === email) {
-                return res.status(409).json({
-                    status: 409,
-                    success: false,
-                    message: "Email is already registered"
-                });
-            }
-            if (phoneNumber !== undefined && existingUser.phoneNumber === phoneNumber) {
-                return res.status(409).json({
-                    status: 409,
-                    success: false,
-                    message: "Phone number is already registered"
-                });
-            }
-        }
-
-        // Update user data
-        const updateFields = {}; // Initialize an empty object to store fields to update
-
-        // Only include fields in the updateFields object if they are provided in the request body
-        if (fullName) {
-            updateFields.fullName = fullName;
-        }
-        if (fatherName) {
-            updateFields.fatherName = fatherName;
-        }
-        if (classRollNumber) {
-            updateFields.classRollNumber = classRollNumber;
-        }
-        if (registrationNumber) {
-            updateFields.registrationNumber = registrationNumber;
-        }
-        if (programme) {
-            updateFields.programme = programme;
-        }
-        if (department) {
-            updateFields.department = department;
-        }
-        if (currentSemester) {
-            updateFields.currentSemester = currentSemester;
-        }
-        if (gender) {
-            updateFields.gender = gender;
-        }
-        if (email) {
-            updateFields.email = email;
-        }
-        if (phoneNumber) {
-            updateFields.phoneNumber = phoneNumber;
-        }
-
-        // Check if any field to update is provided
-        if (Object.keys(updateFields).length === 0) {
-            return res.status(400).json({
-                status: 400,
-                success: false,
-                message: "No fields provided for update."
-            });
-        }
-
-        // Perform the update operation
-        const updatedUser = await User.findOneAndUpdate({ examRollNumber }, updateFields, { new: true });
-
-        // Return success response with updated user data
-        return res.status(200).json({
-            status: 200,
-            success: true,
-            message: "Student data updated successfully.",
-            user: updatedUser
-        });
-    } catch (error) {
-        return res.status(500).json({
-            status: 500,
-            success: false,
-            message: "Internal server error occurred in updateUserProfileBYExamRollNumber Controller",
-            error: error.message
-        });
-    }
-}
-
-
-
-
-export { registerAsAdmin, updateLORrequest, approveLORrequest, rejectLORrequest, getAllPendingLOR, getAllApprovedLOR, getAllRejectedLOR, findLorsByExamRollNumber, findUserByExamRollNumber, updateUserProfileByExamRollNumber }
+export { updateLORrequest, approveLORrequest, rejectLORrequest, allPendingLORsOfDept, allApprovedLORsOfDept, allRejectedLORsOfDept }

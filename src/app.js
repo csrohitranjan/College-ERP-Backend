@@ -19,6 +19,9 @@ app.use(cookieParser());
 // ##############     Routes   #######################
 
 import userRouter from "./routes/user.routes.js";
+import hodRouter from "./routes/hod.routes.js"
+import studentRouter from "./routes/student.routes.js"
+import adminRouter from "./routes/admin.routes.js"
 
 // ##########      Routes Declaration   ############################
 
@@ -34,7 +37,9 @@ app.get('/', (req, res) => {
 
 
 app.use("/api/v1/users", userRouter);
-
+app.use("/api/v1/users/hod", hodRouter);
+app.use("/api/v1/users/student", studentRouter)
+app.use("/api/v1/users/admin", adminRouter)
 
 
 export default app;

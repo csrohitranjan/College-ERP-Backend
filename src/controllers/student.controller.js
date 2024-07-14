@@ -81,8 +81,6 @@ const requestLOR = async (req, res) => {
     }
 };
 
-
-
 // Controller to get all LORs of the logged-in user
 const getAllLorsOfLoggedInUser = async (req, res) => {
     try {
